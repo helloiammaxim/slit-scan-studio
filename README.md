@@ -5,6 +5,7 @@ A browser tool for slit-scan and time-displacement effects. Every pixel of the p
 **Open the tool:** open `index.html` in a browser. No install needed (WebGL 2 required).
 
 - Load a video, or drop one onto the page; drop an image to use it as your own time map
+- Transparent videos (WebM with alpha) sit on a background colour you choose: black, grey, white or any colour
 - **Time map** technique: Flat, Linear, Radial, Angular/spiral, Wave, Noise, Mosaic, Luma (time displacement) and Image maps, with depth, offset, repeat, mirror, steps, curve and drift
 - **Strip scan** technique: photo-finish style scanning with a vertical or horizontal slit, scroll or wipe
 - Effects: Echo (average, lighten, darken), Motion extract and Difference
