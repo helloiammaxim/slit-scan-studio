@@ -596,74 +596,79 @@ const demo = document.createElement('canvas'); demo.width = 1280; demo.height = 
 const dctx = demo.getContext('2d');
 let source = 'demo', playing = true, demoT = 0, speed = 1, lastCapT = -1, skip = 0, objUrl = null;
 function drawDemo(t){
-  const g = dctx, w = demo.width, h = demo.height;
+  const g = dctx, w = demo.width, h = demo.height, cx = w*0.5, cy = h*0.46;
   g.globalCompositeOperation = 'source-over';
-  // deep ink stage with a soft violet bloom
-  const bg = g.createRadialGradient(w*0.5, h*0.46, 0, w*0.5, h*0.5, w*0.72);
-  bg.addColorStop(0, '#221d48'); bg.addColorStop(0.55, '#0f0d1f'); bg.addColorStop(1, '#050509');
-  g.fillStyle = bg; g.fillRect(0, 0, w, h);
-  // fine dot grid, so stretched time reads as texture
-  g.fillStyle = 'rgba(255,255,255,.07)';
-  for (let y = 20; y < h; y += 40) for (let x = 20; x < w; x += 40) g.fillRect(x, y, 2, 2);
+  g.fillStyle = '#050507'; g.fillRect(0, 0, w, h);
 
-  g.globalCompositeOperation = 'lighter';
-  // sweeping colour beams
-  const beams = [['255,72,96', 150, 0], ['70,120,255', 230, 520], ['255,190,70', 95, 980]];
-  for (const [c, v, o] of beams){
-    const x = ((t*v + o) % (w + 700)) - 350;
-    const lg = g.createLinearGradient(x - 160, 0, x + 160, 0);
-    lg.addColorStop(0, `rgba(${c},0)`); lg.addColorStop(0.5, `rgba(${c},.20)`); lg.addColorStop(1, `rgba(${c},0)`);
-    g.fillStyle = lg; g.fillRect(x - 160, 0, 320, h);
-  }
-
-  // rotating trefoil knot of glowing beads
-  const cx = w*0.5, cy = h*0.47, R = h*0.25;
-  const ay = t*0.85, ax = 0.55 + Math.sin(t*0.37)*0.4, M = 150, pts = [];
-  for (let i = 0; i < M; i++){
-    const u = i / M * Math.PI * 2;
-    const r = 1 + 0.45*Math.cos(3*u + t*0.5);
-    const x = r*Math.cos(2*u), y = r*Math.sin(2*u), z = 0.45*Math.sin(3*u + t*0.5);
-    const x1 = x*Math.cos(ay) + z*Math.sin(ay), z1 = -x*Math.sin(ay) + z*Math.cos(ay);
-    const y1 = y*Math.cos(ax) - z1*Math.sin(ax), z2 = y*Math.sin(ax) + z1*Math.cos(ax);
-    const s = 3 / (3 + z2);
-    pts.push({ x: cx + x1*R*s, y: cy + y1*R*s, z: z2, s, hue: (i / M * 300 + t*40) % 360 });
-  }
-  for (const p of pts){ // glow pass
-    const rad = 34*p.s, gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, rad);
-    gr.addColorStop(0, `hsla(${p.hue},100%,62%,.55)`); gr.addColorStop(1, `hsla(${p.hue},100%,55%,0)`);
-    g.fillStyle = gr; g.fillRect(p.x - rad, p.y - rad, rad*2, rad*2);
-  }
-  g.globalCompositeOperation = 'source-over';
-  pts.sort((a, b) => b.z - a.z);
-  for (const p of pts){ // solid cores, back to front, darker when far
-    const rad = 9*p.s, l = 46 + (1 - p.z)*14;
-    const gr = g.createRadialGradient(p.x - rad*0.35, p.y - rad*0.35, 0, p.x, p.y, rad);
-    gr.addColorStop(0, `hsl(${p.hue},100%,${Math.min(92, l + 32)}%)`); gr.addColorStop(1, `hsl(${p.hue},90%,${l - 14}%)`);
-    g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, rad, 0, Math.PI*2); g.fill();
-  }
-
-  // orbiting light comets
-  g.globalCompositeOperation = 'lighter';
-  for (let k = 0; k < 3; k++){
-    const a = t*(1.1 + k*0.45) + k*2.1;
-    const ox = cx + Math.cos(a)*w*0.36, oy = cy + Math.sin(a*1.3)*h*0.34;
-    const gr = g.createRadialGradient(ox, oy, 0, ox, oy, 70);
-    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.15, 'rgba(255,240,220,.85)');
-    gr.addColorStop(0.5, ['rgba(255,90,140,.25)','rgba(90,160,255,.25)','rgba(255,200,90,.25)'][k]); gr.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = gr; g.fillRect(ox - 70, oy - 70, 140, 140);
+  // slow aurora: three soft light fields drifting on long loops
+  g.globalCompositeOperation = 'screen';
+  const fields = [
+    ['66,133,244', 0.00, 0.31, 0.62],   // blue
+    ['155,114,203', 2.10, 0.23, 0.55],  // violet
+    ['217,101,112', 4.20, 0.27, 0.50],  // rose
+  ];
+  for (const [c, ph, sp, r] of fields){
+    const a = t*sp + ph;
+    const x = cx + Math.cos(a)*w*0.22, y = cy + Math.sin(a*1.3)*h*0.20, rad = h*r;
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, `rgba(${c},.55)`); gr.addColorStop(0.45, `rgba(${c},.18)`); gr.addColorStop(1, `rgba(${c},0)`);
+    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad*2, rad*2);
   }
   g.globalCompositeOperation = 'source-over';
 
-  // drifting wordmark and a running timecode
+  // hairline orbit with one small light travelling on it
+  const ox = h*0.34, oy = h*0.12, tilt = -0.18;
+  g.save(); g.translate(cx, cy); g.rotate(tilt);
+  g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1.5;
+  g.beginPath(); g.ellipse(0, 0, ox, oy, 0, 0, Math.PI*2); g.stroke();
+  const oa = t*1.4, px = Math.cos(oa)*ox, py = Math.sin(oa)*oy, front = Math.sin(oa) > 0;
+  g.restore();
+  const dot = () => {
+    const x = cx + px*Math.cos(tilt) - py*Math.sin(tilt), y = cy + px*Math.sin(tilt) + py*Math.cos(tilt);
+    const gr = g.createRadialGradient(x, y, 0, x, y, 26);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(x - 26, y - 26, 52, 52);
+  };
+  if (!front) dot();
+
+  // the sparkle: four concave points, gradient fill that turns against the shape
+  const r = h*0.19*(1 + 0.06*Math.sin(t*1.6)), rot = t*0.55;
+  const halo = g.createRadialGradient(cx, cy, 0, cx, cy, r*1.9);
+  halo.addColorStop(0, 'rgba(140,150,255,.32)'); halo.addColorStop(1, 'rgba(140,150,255,0)');
+  g.fillStyle = halo; g.fillRect(cx - r*2, cy - r*2, r*4, r*4);
+  g.save(); g.translate(cx, cy); g.rotate(rot);
+  let fill;
+  if (g.createConicGradient){
+    fill = g.createConicGradient(-rot*2.2, 0, 0);
+    fill.addColorStop(0, '#4285f4'); fill.addColorStop(0.33, '#9b72cb'); fill.addColorStop(0.62, '#d96570');
+    fill.addColorStop(0.82, '#f2a45a'); fill.addColorStop(1, '#4285f4');
+  } else {
+    fill = g.createLinearGradient(-r, -r, r, r);
+    fill.addColorStop(0, '#4285f4'); fill.addColorStop(0.5, '#9b72cb'); fill.addColorStop(1, '#d96570');
+  }
+  g.fillStyle = fill;
+  g.beginPath(); g.moveTo(0, -r);
+  g.quadraticCurveTo(r*0.06, -r*0.06, r, 0);
+  g.quadraticCurveTo(r*0.06, r*0.06, 0, r);
+  g.quadraticCurveTo(-r*0.06, r*0.06, -r, 0);
+  g.quadraticCurveTo(-r*0.06, -r*0.06, 0, -r);
+  g.fill();
+  // soft white core gives the shape a lit, glassy centre
+  const core = g.createRadialGradient(0, 0, 0, 0, 0, r*0.42);
+  core.addColorStop(0, 'rgba(255,255,255,.75)'); core.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = core; g.fill();
+  g.restore();
+  if (front) dot();
+
+  // quiet wordmark
   g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  g.font = '700 92px "Geist", system-ui, sans-serif';
-  g.fillStyle = 'rgba(255,255,255,.94)';
-  g.fillText('SLIT · SCAN', w*0.5 + Math.sin(t*0.6)*300, h*0.92);
-  const f = Math.floor(t*30), tc = [Math.floor(t/3600), Math.floor(t/60)%60, Math.floor(t)%60, f%30].map(n => String(n).padStart(2, '0')).join(':');
-  g.textAlign = 'left'; g.font = '500 22px "Geist Mono", ui-monospace, monospace';
-  g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText('TC ' + tc, 40, 56);
-  g.fillStyle = '#ff453a'; g.beginPath(); g.arc(w - 52, 49, 8, 0, Math.PI*2); g.fill();
-  g.fillStyle = 'rgba(255,255,255,.55)'; g.textAlign = 'right'; g.fillText('REC', w - 70, 56);
+  g.font = '500 30px "Geist", system-ui, sans-serif';
+  g.fillStyle = 'rgba(255,255,255,.86)';
+  if ('letterSpacing' in g) g.letterSpacing = '0.5px';
+  g.fillText('Slit-Scan Studio', cx, h*0.86);
+  g.font = '400 18px "Geist", system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,.42)';
+  g.fillText('Every pixel, a different moment.', cx, h*0.86 + 32);
+  if ('letterSpacing' in g) g.letterSpacing = '0px';
 }
 
 async function loadVideo(file){
@@ -1122,7 +1127,7 @@ addEventListener('keydown', e => {
 })();
 
 /* ---------- main loop ---------- */
-let last = performance.now(), uiTick = 0, demoAcc = 0, thumbsDone = false, started = performance.now();
+let last = performance.now(), uiTick = 0, demoAcc = 0, thumbsDone = false, thumbsLate = false, started = performance.now();
 function frame(now){
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
@@ -1140,7 +1145,9 @@ function frame(now){
     }
     if (passMode){ if (lastVt > video.currentTime + 0.2) stopRec(); lastVt = video.currentTime; }
   }
+  // thumbnails render once early, then again when the buffer holds real motion
   if (!thumbsDone && now - started > 900){ thumbsDone = true; renderThumbs(); }
+  if (!thumbsLate && now - started > 4000){ thumbsLate = true; renderThumbs(); }
   draw();
   if (rec && ++uiTick % 10 === 0){
     const s = Math.floor((now - recStart) / 1000);
