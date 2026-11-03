@@ -1,0 +1,1087 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Slit-Scan Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed WebGL stage; floating glass chrome — top bar, right inspector, bottom transport capsule */
+:root{
+  --bg:#f1f1f3; --canvas:#f1f1f3;
+  --panel:rgba(255,255,255,.74); --panel-strong:rgba(255,255,255,.92);
+  --line:rgba(24,24,40,.10); --fg:#1b1b1f; --muted:#6b6b74; --faint:#9b9ba4;
+  --accent:#0a6fe6; --on-accent:#ffffff; --track:rgba(24,24,40,.12);
+  --knob:#ffffff; --grid:#d3d3db; --grid2:#e3e3e9;
+  --shadow:0 12px 40px rgba(24,24,48,.12),0 1px 2px rgba(24,24,48,.08);
+  --f-ui:"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --f-mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d0d10; --canvas:#0d0d10;
+  --panel:rgba(32,32,37,.70); --panel-strong:rgba(38,38,44,.94);
+  --line:rgba(255,255,255,.09); --fg:#f2f2f5; --muted:#9c9ca6; --faint:#6c6c76;
+  --accent:#3d9bff; --on-accent:#ffffff; --track:rgba(255,255,255,.14);
+  --knob:#f4f4f6; --grid:#2b2b32; --grid2:#1c1c22;
+  --shadow:0 16px 50px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d0d10; --canvas:#0d0d10;
+  --panel:rgba(32,32,37,.70); --panel-strong:rgba(38,38,44,.94);
+  --line:rgba(255,255,255,.09); --fg:#f2f2f5; --muted:#9c9ca6; --faint:#6c6c76;
+  --accent:#3d9bff; --on-accent:#ffffff; --track:rgba(255,255,255,.14);
+  --knob:#f4f4f6; --grid:#2b2b32; --grid2:#1c1c22;
+  --shadow:0 16px 50px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark}
+
+/* the interface follows the stage: White stage → light chrome, Black stage → dark chrome, Theme → system */
+html.ui-light:root{--bg:#f1f1f3; --canvas:#f1f1f3;
+  --panel:rgba(255,255,255,.74); --panel-strong:rgba(255,255,255,.92);
+  --line:rgba(24,24,40,.10); --fg:#1b1b1f; --muted:#6b6b74; --faint:#9b9ba4;
+  --accent:#0a6fe6; --on-accent:#ffffff; --track:rgba(24,24,40,.12);
+  --knob:#ffffff; --grid:#d3d3db; --grid2:#e3e3e9;
+  --shadow:0 12px 40px rgba(24,24,48,.12),0 1px 2px rgba(24,24,48,.08);
+  color-scheme:light}
+html.ui-dark:root{--bg:#0d0d10; --canvas:#0d0d10;
+  --panel:rgba(32,32,37,.70); --panel-strong:rgba(38,38,44,.94);
+  --line:rgba(255,255,255,.09); --fg:#f2f2f5; --muted:#9c9ca6; --faint:#6c6c76;
+  --accent:#3d9bff; --on-accent:#ffffff; --track:rgba(255,255,255,.14);
+  --knob:#f4f4f6; --grid:#2b2b32; --grid2:#1c1c22;
+  --shadow:0 16px 50px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:13px;-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#stage{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#stage.grabbing{cursor:grabbing}
+#stage.over{cursor:move}
+.glass{background:var(--panel);backdrop-filter:blur(28px) saturate(1.7);-webkit-backdrop-filter:blur(28px) saturate(1.7);
+  border:.5px solid var(--line);box-shadow:var(--shadow)}
+.chrome{transition:opacity .35s ease,transform .35s ease}
+body.clean .chrome{opacity:0;pointer-events:none}
+
+/* top bar */
+.top{position:fixed;top:calc(16px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none;z-index:5}
+.top>*{pointer-events:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:8px 14px 8px 10px;border-radius:999px}
+.mark{width:22px;height:22px;position:relative;flex:none}
+.mark i{position:absolute;width:13px;height:16px;border-radius:4px;border:1.5px solid var(--fg);background:var(--panel-strong)}
+.mark i:nth-child(1){left:0;top:5px;opacity:.35}.mark i:nth-child(2){left:4px;top:2.5px;opacity:.65}.mark i:nth-child(3){left:8px;top:0}
+.brand b{font-weight:600;letter-spacing:-.01em;font-size:14px}
+.brand span{color:var(--muted);font-family:var(--f-mono);font-size:11px}
+.right{display:flex;gap:8px;align-items:center}
+.seg{display:flex;padding:3px;border-radius:999px;gap:2px}
+.seg button,.iconbtn{font:inherit;color:var(--fg);background:transparent;border:0;cursor:pointer}
+.seg button{padding:6px 12px;border-radius:999px;font-weight:500;font-size:12px;color:var(--muted);transition:background .2s,color .2s}
+.seg button[aria-pressed="true"]{background:var(--panel-strong);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button:hover{color:var(--fg)}
+.iconbtn{width:36px;height:36px;border-radius:999px;display:grid;place-items:center}
+.iconbtn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.iconbtn[aria-pressed="true"]{color:var(--accent)}
+button:focus-visible,input:focus-visible,label:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+
+/* inspector */
+.panel{position:fixed;z-index:4;top:calc(72px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));
+  width:292px;max-height:calc(100% - 180px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto;
+  border-radius:20px;padding:6px 0;scrollbar-width:thin}
+.sec{padding:12px 18px 14px;border-top:.5px solid var(--line)}
+.sec:first-child{border-top:0}
+.sec h3{margin:0 0 10px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
+.sec h3 em{font-style:normal;font-family:var(--f-mono);font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint)}
+.row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 8px;margin-bottom:11px}
+.row:last-child{margin-bottom:0}
+.row label{color:var(--fg);font-weight:500;font-size:12.5px}
+.row output{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.row input[type=range]{grid-column:1/-1}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:20px;background:transparent;margin:0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:linear-gradient(var(--accent),var(--accent)) 0/var(--p,50%) 100% no-repeat,var(--track)}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:4px;background:var(--accent)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--knob);margin-top:-7px;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.22);transition:transform .15s}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.12)}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;border:0;background:var(--knob);box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.22)}
+.seg.small{background:var(--track);padding:2px;width:100%}
+.seg.small button{flex:1;padding:5px 6px;font-size:11.5px}
+.toggles{display:flex;flex-direction:column;gap:9px}
+.tg{display:flex;align-items:center;justify-content:space-between;font-weight:500;font-size:12.5px;cursor:pointer}
+.tg input{position:absolute;opacity:0;pointer-events:none}
+.tg i{width:34px;height:20px;border-radius:999px;background:var(--track);position:relative;transition:background .2s;flex:none}
+.tg i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--knob);box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .22s cubic-bezier(.3,.7,.3,1.2)}
+.tg input:checked+i{background:var(--accent)}
+.tg input:checked+i::after{transform:translateX(14px)}
+.swatches{display:flex;gap:8px;align-items:center}
+.sw{position:relative;width:28px;height:28px;border-radius:9px;overflow:hidden;box-shadow:inset 0 0 0 .5px var(--line),0 1px 2px rgba(0,0,0,.12);cursor:pointer}
+.sw input{position:absolute;inset:-8px;width:44px;height:44px;border:0;padding:0;cursor:pointer}
+.ramp{flex:1;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--ta,#ff6a2b),var(--tb,#8f9cff))}
+.looks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+.looks button{font:inherit;font-size:11.5px;font-weight:500;padding:7px 4px;border-radius:10px;border:.5px solid var(--line);background:var(--panel-strong);color:var(--fg);cursor:pointer}
+.looks button:hover{border-color:var(--accent)}
+
+/* transport */
+.transport{position:fixed;z-index:5;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
+  display:flex;align-items:center;gap:6px;padding:6px;border-radius:999px;max-width:calc(100% - 32px)}
+.play{width:38px;height:38px;border-radius:50%;background:var(--fg);color:var(--bg);border:0;display:grid;place-items:center;cursor:pointer;flex:none}
+.play svg{width:14px;height:14px;fill:currentColor}
+.src{display:flex;flex-direction:column;padding:0 6px 0 4px;min-width:0}
+.src b{font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.src span{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.scrub{width:170px;flex:0 1 170px;min-width:60px}
+.speed{font:inherit;font-family:var(--f-mono);font-size:11.5px;color:var(--fg);background:var(--track);border:0;border-radius:999px;padding:7px 10px;cursor:pointer}
+.upload{display:flex;align-items:center;gap:7px;padding:9px 15px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-weight:500;font-size:12.5px;cursor:pointer;white-space:nowrap;flex:none}
+.upload svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.upload input{position:absolute;width:1px;height:1px;opacity:0}
+
+.hint{position:fixed;z-index:3;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));
+  font-size:12px;color:var(--muted);white-space:nowrap;text-align:center;transition:opacity .6s}
+.hint kbd{font-family:var(--f-mono);font-size:10.5px;padding:1px 5px;border-radius:5px;border:.5px solid var(--line);background:var(--panel)}
+.hint.gone{opacity:0}
+.toast{position:fixed;z-index:9;left:50%;top:calc(76px + env(safe-area-inset-top,0px));transform:translate(-50%,-8px);opacity:0;padding:10px 16px;border-radius:12px;font-weight:500;transition:.3s;pointer-events:none;max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.drop{position:fixed;inset:12px;z-index:20;border:2px dashed var(--accent);border-radius:24px;display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--accent);background:color-mix(in srgb,var(--bg) 70%,transparent)}
+
+.note{margin:0 0 10px;color:var(--muted);font-size:12px;line-height:1.45}
+.btns{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font:inherit;font-size:11.5px;font-weight:500;padding:7px 11px;border-radius:999px;border:.5px solid var(--line);background:var(--panel-strong);color:var(--fg);cursor:pointer}
+.pill:hover{border-color:var(--accent)}
+#gizmo{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+#stage{z-index:1}
+/* export sheet */
+.sheet-wrap{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 35%,transparent);padding:16px}
+.sheet{width:min(360px,100%);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:10px;background:var(--panel-strong)}
+.sheet-h{display:flex;justify-content:space-between;align-items:center;margin:-4px -6px 2px 0}
+.sheet h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+.xrow{display:flex;justify-content:space-between;align-items:center;font-weight:500;font-size:12.5px;margin-top:4px}
+.xrow em{font-style:normal;font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+.durbox{font-family:var(--f-mono);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.durbox input{font:inherit;width:64px;border:0;border-radius:8px;padding:6px 8px;background:var(--track);color:var(--fg);text-align:right}
+.primary{font:inherit;font-weight:600;font-size:13.5px;margin-top:6px;padding:12px;border:0;border-radius:12px;background:var(--accent);color:var(--on-accent);cursor:pointer}
+.pbar{height:6px;border-radius:3px;background:var(--track);overflow:hidden;margin-top:6px}
+.pbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.prow{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+/* collapsible inspector sections */
+.sec h3.fold{cursor:pointer;user-select:none;margin-bottom:10px;align-items:center;gap:8px}
+.sec h3.fold .chev{margin-left:auto;width:6px;height:6px;flex:none;border-right:1.5px solid var(--faint);border-bottom:1.5px solid var(--faint);transform:translateY(-2px) rotate(45deg);transition:transform .2s}
+.sec h3.fold em{margin-left:auto}
+.sec h3.fold em + .chev{margin-left:0}
+.sec.collapsed h3.fold{margin-bottom:0}
+.sec.collapsed h3.fold .chev{transform:translateY(1px) rotate(-45deg)}
+.sec.collapsed > :not(h3){display:none!important}
+.sec h3.fold:hover{color:var(--fg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chips:empty{display:none}
+.chip{font:inherit;font-size:12px;font-weight:500;padding:6px 11px;border-radius:999px;border:.5px solid var(--line);background:var(--panel-strong);color:var(--fg);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.chipname{font:inherit;font-size:12px;font-weight:500;width:120px;border:0;border-radius:999px;padding:6px 11px;background:var(--track);color:var(--fg)}
+.pill:disabled{opacity:.4;cursor:default}
+label.pill{display:inline-flex;align-items:center}
+.row output.num{cursor:text;border-radius:6px;padding:1px 5px;margin-right:-5px;transition:background .15s}
+.row output.num:hover,.row output.num:focus-visible{background:var(--track);color:var(--fg)}
+.numedit{font:inherit;font-family:var(--f-mono);font-size:11.5px;width:76px;justify-self:end;text-align:right;border:0;border-radius:6px;padding:2px 6px;background:var(--track);color:var(--fg);font-variant-numeric:tabular-nums}
+.numedit:focus{outline:2px solid var(--accent);outline-offset:0}
+@media (max-width:760px){
+  .brand span,.hint{display:none}
+  .seg.views button{padding:6px 9px}
+  .panel{top:auto;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));width:auto;
+    bottom:calc(80px + env(safe-area-inset-bottom,0px));max-height:50vh}
+  .scrub{display:none}
+  .src b{max-width:90px}
+  .upload .lbl{display:none}
+  .upload{padding:10px}
+}
+@media (max-width:420px){ .speed{display:none} }
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* Slit-Scan Studio: output canvas floats centred in the free stage area; inspector right, transport bottom */
+#stage{position:fixed;inset:auto;width:auto;height:auto;cursor:default;border-radius:6px;box-shadow:var(--shadow);background:#000;touch-action:auto}
+.pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:12px}
+.ptile{font:inherit;display:flex;flex-direction:column;gap:5px;padding:4px 4px 6px;border-radius:10px;border:.5px solid var(--line);background:var(--panel-strong);color:var(--fg);cursor:pointer;min-width:0;text-align:left}
+.ptile canvas{display:block;width:100%;aspect-ratio:16/10;border-radius:6px;background:var(--track)}
+.ptile span{font-size:11px;font-weight:500;line-height:1.2;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ptile:hover{border-color:var(--accent)}
+.ptile[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent) inset}
+.shapes{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:12px}
+.shapes button{font:inherit;font-size:11.5px;font-weight:500;padding:7px 4px;border-radius:8px;border:.5px solid var(--line);background:var(--panel-strong);color:var(--muted);cursor:pointer}
+.shapes button[aria-pressed="true"]{color:var(--on-accent);background:var(--accent);border-color:transparent}
+.saverow{display:flex;gap:6px;align-items:center}
+.saverow .chipname{flex:1;min-width:0;width:auto}
+.chip .x{margin-left:6px;opacity:.55}
+.chip .x:hover{opacity:1}
+.btns .note{font-size:11.5px}
+body[data-mode="map"] [data-for="strip"],body[data-mode="strip"] [data-for="map"]{display:none}
+#recBtn .dot{fill:#ff453a;stroke:none}
+#recBtn[aria-pressed="true"]{background:#ff453a;color:#fff}
+#recBtn[aria-pressed="true"] .dot{fill:#fff}
+.recpill{position:fixed;z-index:8;left:50%;top:calc(18px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;
+  padding:7px 8px 7px 12px;border-radius:999px;border:0;background:#ff453a;color:#fff;font:600 12px var(--f-mono);cursor:pointer;box-shadow:var(--shadow)}
+.recpill i{width:8px;height:8px;border-radius:50%;background:#fff;animation:recblink 1s steps(2) infinite}
+.recpill b{font:600 11px var(--f-ui);background:rgba(255,255,255,.22);padding:4px 9px;border-radius:999px}
+@keyframes recblink{50%{opacity:.25}}
+@media (max-width:760px){ .seg.views button{padding:6px 8px} .top .right{gap:6px} .iconbtn{width:34px;height:34px} }
+@media (max-width:520px){ .brand b{display:none} .brand{padding:8px} .seg.views button{padding:6px 7px;font-size:11.5px} }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="Slit-scan output"></canvas>
+<video id="vid" loop muted playsinline crossorigin="anonymous" hidden></video>
+
+<header class="top chrome">
+  <div class="brand glass"><div class="mark" aria-hidden="true"><i></i><i></i><i></i></div><b>Slit-Scan Studio</b><span id="bufOut">— 90 frames</span></div>
+  <div class="right">
+    <div class="seg views glass" role="group" aria-label="View">
+      <button id="v-result" aria-pressed="true" title="Result (V)">Result</button><button id="v-map" aria-pressed="false" title="Time map (V)">Map</button><button id="v-source" aria-pressed="false" title="Source (V)">Source</button>
+    </div>
+    <button class="iconbtn glass" id="recBtn" aria-pressed="false" title="Record live (R)"><svg viewBox="0 0 24 24"><circle class="dot" cx="12" cy="12" r="5.5"/></svg></button>
+    <button class="iconbtn glass" id="exportBtn" title="Export"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg></button>
+    <button class="iconbtn glass" id="panelBtn" aria-pressed="true" title="Inspector"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+  </div>
+</header>
+
+<aside class="panel glass chrome" id="panel" aria-label="Inspector">
+  <section class="sec" id="sec-presets"><h3>Presets <em id="presetName">Classic slit</em></h3>
+    <div class="pgrid" id="pgrid"></div>
+    <div class="chips" id="myChips"></div>
+    <div class="saverow">
+      <input class="chipname" id="presetInput" placeholder="Name this look" aria-label="Preset name" maxlength="40">
+      <button class="pill" id="presetSave">Save</button>
+    </div>
+    <div class="btns" style="margin-top:8px">
+      <button class="pill" id="presetExport">Export presets</button>
+      <label class="pill">Import<input type="file" id="presetImport" accept="application/json,.json" hidden></label>
+    </div>
+  </section>
+
+  <section class="sec" id="sec-tech"><h3>Technique</h3>
+    <div class="seg small" role="group" aria-label="Technique"><button id="m-map" aria-pressed="true">Time map</button><button id="m-strip" aria-pressed="false">Strip scan</button></div>
+    <p class="note" id="techNote" style="margin:10px 0 0"></p>
+  </section>
+
+  <section class="sec" id="sec-shape" data-for="map"><h3>Time map <em>dark = now</em></h3>
+    <div class="shapes" id="shapes" role="group" aria-label="Map shape"></div>
+    <div class="btns" id="mapImgRow" hidden style="margin-bottom:12px"><label class="pill">Load map image<input type="file" id="mapFile" accept="image/*" hidden></label><span class="note" id="mapImgName" style="margin:0;align-self:center">none loaded</span></div>
+    <div id="shapeCtrls"></div>
+  </section>
+
+  <section class="sec" id="sec-time" data-for="map"><h3>Time <em id="depthOut">—</em></h3>
+    <div id="timeCtrls"></div>
+    <div class="toggles" style="margin-top:12px">
+      <label class="tg">Mirror repeats<input type="checkbox" id="t-mirror"><i></i></label>
+      <label class="tg">Invert<input type="checkbox" id="t-invert"><i></i></label>
+      <label class="tg">Blend between frames<input type="checkbox" id="t-interp" checked><i></i></label>
+    </div>
+  </section>
+
+  <section class="sec" id="sec-strip" data-for="strip"><h3>Strip scan</h3>
+    <div class="seg small" role="group" aria-label="Slit orientation" style="margin-bottom:10px"><button id="s-v" aria-pressed="true">Vertical slit</button><button id="s-h" aria-pressed="false">Horizontal slit</button></div>
+    <div class="seg small" role="group" aria-label="Write mode" style="margin-bottom:10px"><button id="s-scroll" aria-pressed="true">Scroll</button><button id="s-wipe" aria-pressed="false">Wipe</button></div>
+    <div class="seg small" role="group" aria-label="Direction" style="margin-bottom:12px"><button id="s-fwd" aria-pressed="true">Newest → end</button><button id="s-rev" aria-pressed="false">Newest → start</button></div>
+    <div id="stripCtrls"></div>
+    <div class="btns" style="margin-top:12px"><button class="pill" id="stripClear">Clear strip</button></div>
+  </section>
+
+  <section class="sec" id="sec-look" data-for="map"><h3>Effect</h3>
+    <div class="seg small" role="group" aria-label="Effect" style="margin-bottom:12px"><button id="p-none" aria-pressed="true">None</button><button id="p-echo" aria-pressed="false">Echo</button><button id="p-motion" aria-pressed="false">Motion</button><button id="p-diff" aria-pressed="false">Diff</button></div>
+    <div id="echoBox" hidden>
+      <div class="seg small" role="group" aria-label="Echo blend" style="margin-bottom:12px"><button id="e-avg" aria-pressed="true">Average</button><button id="e-max" aria-pressed="false">Lighten</button><button id="e-min" aria-pressed="false">Darken</button></div>
+    </div>
+    <div id="lookCtrls"></div>
+    <p class="note" id="lookNote" style="margin:10px 0 0"></p>
+  </section>
+
+  <section class="sec" id="sec-buf"><h3>Buffer <em id="memOut">—</em></h3>
+    <div class="seg small" role="group" aria-label="Resolution" style="margin-bottom:12px"><button data-res="360" aria-pressed="true">360p</button><button data-res="540" aria-pressed="false">540p</button><button data-res="720" aria-pressed="false">720p</button><button data-res="1080" aria-pressed="false">1080p</button></div>
+    <div id="bufCtrls"></div>
+    <div class="toggles" style="margin-top:12px">
+      <label class="tg">Freeze buffer<input type="checkbox" id="b-freeze"><i></i></label>
+    </div>
+    <div class="btns" style="margin-top:12px"><button class="pill" id="bufClear">Refill from current frame</button></div>
+  </section>
+</aside>
+
+<nav class="transport glass chrome" aria-label="Playback">
+  <button class="play" id="playBtn" aria-label="Pause"><svg viewBox="0 0 14 14" id="playIco"><rect x="2" y="1.5" width="3.4" height="11" rx="1"/><rect x="8.6" y="1.5" width="3.4" height="11" rx="1"/></svg></button>
+  <div class="src"><b id="srcName">Demo clip</b><span id="srcTime">live</span></div>
+  <input type="range" class="scrub" id="scrub" min="0" max="1000" value="0" aria-label="Scrub video" hidden>
+  <button class="speed" id="speedBtn" title="Playback speed">1×</button>
+  <label class="upload"><input type="file" id="file" accept="video/*,image/*"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg><span class="lbl">Load video</span></label>
+</nav>
+<div class="hint" id="hint">Pick a preset · drop a video · drop an image to use it as a time map · <kbd>[</kbd> <kbd>]</kbd> presets · <kbd>V</kbd> view</div>
+
+<div class="sheet-wrap" id="exportSheet" hidden>
+  <div class="sheet glass" role="dialog" aria-modal="true" aria-labelledby="x-title">
+    <div class="sheet-h"><h2 id="x-title">Export</h2><button class="iconbtn" id="x-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="xrow"><span>Still frame</span><em id="x-res">—</em></div>
+    <div class="seg small" role="group" aria-label="Image format"><button id="x-png" aria-pressed="true">PNG</button><button id="x-jpg" aria-pressed="false">JPG</button><button id="x-webp" aria-pressed="false">WebP</button></div>
+    <div class="seg small" role="group" aria-label="Scale"><button id="x-1" aria-pressed="true">1×</button><button id="x-2" aria-pressed="false">2×</button></div>
+    <button class="primary" id="x-frame">Save frame</button>
+    <div class="xrow" style="margin-top:12px"><span>Video</span><em id="x-vfmt">WebM</em></div>
+    <p class="note" style="margin:0">Records the output in real time. One pass restarts the video and stops when it loops; the red dot in the top bar records until you stop it.</p>
+    <button class="primary" id="x-pass">Record one pass</button>
+  </div>
+</div>
+<button class="recpill" id="recPill" hidden><i></i><span id="recTime">REC 00:00</span><b>Stop</b></button>
+<div class="toast glass" id="toast" role="status"></div>
+<div class="drop" id="drop" hidden>Drop a video to scan it, or an image to use as a time map</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+/* ---------- parameters ---------- */
+const SHAPES = [
+  ['flat','Flat'], ['linear','Linear'], ['radial','Radial'], ['angular','Angular'], ['wave','Wave'],
+  ['noise','Noise'], ['mosaic','Mosaic'], ['luma','Luma'], ['image','Image'],
+];
+const SHAPE_IDX = Object.fromEntries(SHAPES.map(([k], i) => [k, i]));
+const DEF = {
+  mode:'map', shape:'linear', angle:0, cx:0.5, cy:0.5, twist:0, freq:3, amp:0.15, nscale:2.5, cells:10,
+  depth:1, offset:0, repeat:1, steps:0, curve:1, drift:0, mirror:false, invert:false, interp:true,
+  slitAxis:'v', slitPos:0.5, slitW:2, stripWrite:'scroll', stripDir:'fwd',
+  post:'none', echoN:8, echoOp:'avg', gain:2,
+  frames:90, res:360, every:1,
+};
+const P = { ...DEF };
+
+const PRESETS = [
+  { name:'Classic slit', p:{ shape:'linear', angle:0 } },
+  { name:'Falling time', p:{ shape:'linear', angle:90 } },
+  { name:'Diagonal', p:{ shape:'linear', angle:35, curve:1.4 } },
+  { name:'Time tunnel', p:{ shape:'radial' } },
+  { name:'Black hole', p:{ shape:'radial', invert:true, curve:0.7 } },
+  { name:'Clock sweep', p:{ shape:'angular', angle:-90 } },
+  { name:'Spiral', p:{ shape:'angular', twist:2.5 } },
+  { name:'Ripple rings', p:{ shape:'radial', repeat:5, mirror:true, drift:0.25 } },
+  { name:'Venetian blinds', p:{ shape:'linear', angle:90, repeat:10, depth:0.5 } },
+  { name:'Shutter steps', p:{ shape:'linear', angle:0, steps:8 } },
+  { name:'Wave warp', p:{ shape:'wave', angle:0, freq:3, amp:0.2 } },
+  { name:'Liquid time', p:{ shape:'noise', nscale:2.2, drift:0.15 } },
+  { name:'Time mosaic', p:{ shape:'mosaic', cells:9 } },
+  { name:'Luma melt', p:{ shape:'luma', depth:0.7, curve:1.3 } },
+  { name:'Rolling band', p:{ shape:'linear', angle:90, drift:0.2, curve:3 } },
+  { name:'Photo finish', p:{ mode:'strip', slitAxis:'v', slitPos:0.5, slitW:2, stripWrite:'scroll', stripDir:'fwd' } },
+  { name:'Strip wipe', p:{ mode:'strip', slitAxis:'v', slitPos:0.5, slitW:3, stripWrite:'wipe', stripDir:'fwd' } },
+  { name:'Horizon scan', p:{ mode:'strip', slitAxis:'h', slitPos:0.5, slitW:2, stripWrite:'scroll', stripDir:'fwd' } },
+  { name:'Motion extract', p:{ shape:'flat', depth:0.04, post:'motion', gain:2.5 } },
+  { name:'Echo trails', p:{ shape:'flat', depth:0.35, post:'echo', echoN:10, echoOp:'max' } },
+  { name:'Long exposure', p:{ shape:'flat', depth:1, post:'echo', echoN:16, echoOp:'avg' } },
+];
+// a preset starts from the defaults, but keeps the buffer settings the person chose
+const BUFFER_KEYS = ['frames','res','every'];
+function presetParams(p){
+  const out = { ...DEF, ...p };
+  for (const k of BUFFER_KEYS) out[k] = P[k];
+  return out;
+}
+
+/* ---------- WebGL2 ---------- */
+const canvas = $('stage');
+const gl = canvas.getContext('webgl2', { preserveDrawingBuffer:true, antialias:false, premultipliedAlpha:false });
+if (!gl){ document.body.insertAdjacentHTML('beforeend', '<div class="toast glass on">This browser has no WebGL 2, which Slit-Scan Studio needs. Try a current Chrome, Edge, Firefox or Safari.</div>'); return; }
+
+const VS = `#version 300 es
+in vec2 pos; out vec2 vUv;
+void main(){ vUv = vec2(pos.x*.5+.5, .5-pos.y*.5); gl_Position = vec4(pos,0.,1.); }`;
+const FS = `#version 300 es
+precision highp float; precision highp sampler2DArray;
+in vec2 vUv; out vec4 o;
+uniform sampler2DArray buf; uniform sampler2D strip; uniform sampler2D mapTex;
+uniform int newest, N, count, shape, view, post, echoN, echoOp, mode;
+uniform float angle, cx, cy, twist, freq, amp, nscale, cells, depth, offset, rep, mirror, inv, steps, curve, t, interp, gain, aspect, maxR;
+uniform vec4 slit; // x: axis (0 vertical, 1 horizontal), y: slit position, z: write head (0..1), w: wipe (1) or scroll (0)
+uniform float sdir;  // 1: newest at end, -1: newest at start
+
+float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
+float fbm(vec2 p){ float s=0., a=.5; for(int i=0;i<5;i++){ s += a*vnoise(p); p = p*2.03 + 17.1; a *= .5; } return s/.97; }
+
+vec3 frameAt(float back){
+  float last = float(max(count-1,0));
+  back = clamp(back, 0., last);
+  float b0 = floor(back), f = fract(back)*interp;
+  int l0 = (newest - int(b0) + N*8) % N;
+  vec3 a = texture(buf, vec3(vUv, float(l0))).rgb;
+  if (f < .002) return a;
+  int l1 = (newest - int(min(b0+1., last)) + N*8) % N;
+  return mix(a, texture(buf, vec3(vUv, float(l1))).rgb, f);
+}
+float luma(vec3 c){ return dot(c, vec3(.2126,.7152,.0722)); }
+
+float rawMap(){
+  float a = radians(angle); vec2 dir = vec2(cos(a), sin(a));
+  vec2 q = vUv - .5; q.x *= aspect;
+  vec2 p = vUv - vec2(cx,cy); p.x *= aspect;
+  if (shape == 0) return 1.;
+  if (shape == 1){ float ext = abs(dir.x)*aspect*.5 + abs(dir.y)*.5; return clamp(dot(q,dir)/(2.*ext) + .5, 0., 1.); }
+  if (shape == 2) return clamp(length(p)/maxR, 0., 1.);
+  if (shape == 3){ float an = atan(p.y, p.x) - a; return fract(an/6.2831853 + twist*length(p)/maxR); }
+  if (shape == 4){
+    float ext = abs(dir.x)*aspect*.5 + abs(dir.y)*.5;
+    vec2 perp = vec2(-dir.y, dir.x);
+    float d = dot(q,dir)/(2.*ext) + .5 + amp*sin(dot(q,perp)*freq*6.2831853 + t*6.2831853);
+    return clamp(d, 0., 1.);
+  }
+  if (shape == 5) return clamp((fbm(p*nscale + vec2(t*.6, t*.45)) - .2)/.6, 0., 1.);
+  if (shape == 6){ vec2 c = floor(vUv*vec2(cells*aspect, cells)); return hash(c + floor(t*2.)*7.13); }
+  if (shape == 7) return luma(frameAt(0.));
+  return texture(mapTex, vUv).r;
+}
+float timeMap(){
+  float d = rawMap();
+  if (rep > 1.001 || mirror > .5){ float x = d*rep; d = mirror > .5 ? 1. - abs(1. - mod(x, 2.)) : (x >= rep - 1e-4 ? 1. : fract(x)); }
+  if (shape != 5 && shape != 6 && abs(t) > 1e-5) d = fract(d + t);
+  d = pow(clamp(d,0.,1.), curve);
+  if (steps >= 2.) d = min(floor(d*steps), steps-1.)/(steps-1.);
+  if (inv > .5) d = 1. - d;
+  return d;
+}
+vec3 ramp(float d){ // now → past, readable in both themes
+  vec3 a = vec3(.07,.07,.10), b = vec3(.36,.30,.95), c = vec3(1.,.62,.32), e = vec3(.98,.97,.94);
+  return d < .5 ? mix(a, b, d*2.) : (d < .8 ? mix(b, c, (d-.5)/.3) : mix(c, e, (d-.8)/.2));
+}
+float stripAge(){
+  float x = slit.x < .5 ? vUv.x : vUv.y;
+  if (slit.w > .5) return fract((slit.z - x)*sdir);
+  return sdir > 0. ? 1. - x : x;
+}
+void main(){
+  float span = float(max(count-1,0));
+  if (mode == 1){
+    if (view == 1){ o = vec4(ramp(stripAge()), 1.); return; }
+    if (view == 2){
+      vec3 c = frameAt(0.);
+      float x = slit.x < .5 ? vUv.x : vUv.y;
+      float w = slit.x < .5 ? fwidth(vUv.x) : fwidth(vUv.y);
+      float line = 1. - smoothstep(0., 2.5*w, abs(x - slit.y));
+      o = vec4(mix(c, vec3(1.,.27,.23), line), 1.); return;
+    }
+    o = vec4(texture(strip, vUv).rgb, 1.); return;
+  }
+  float d = timeMap();
+  if (view == 1){ o = vec4(ramp(d), 1.); return; }
+  if (view == 2){ o = vec4(frameAt(0.), 1.); return; }
+  float back = clamp(offset + d*depth, 0., 1.)*span;
+  vec3 col;
+  if (post == 1){
+    vec3 acc = echoOp == 2 ? vec3(1.) : vec3(0.);
+    for (int k = 0; k < 24; k++){
+      if (k >= echoN) break;
+      vec3 c = frameAt(back*float(k)/float(max(echoN-1,1)));
+      if (echoOp == 0) acc += c; else if (echoOp == 1) acc = max(acc, c); else acc = min(acc, c);
+    }
+    col = echoOp == 0 ? acc/float(echoN) : acc;
+  } else if (post == 2){
+    col = clamp(vec3(.5) + (frameAt(0.) - frameAt(max(back,1.)))*gain*.5, 0., 1.);
+  } else if (post == 3){
+    col = clamp(abs(frameAt(0.) - frameAt(max(back,1.)))*gain, 0., 1.);
+  } else col = frameAt(back);
+  o = vec4(col, 1.);
+}`;
+function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+gl.bindAttribLocation(prog, 0, 'pos'); gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const U = {};
+for (const n of ['buf','strip','mapTex','newest','N','count','shape','view','post','echoN','echoOp','mode','angle','cx','cy','twist','freq','amp','nscale','cells','depth','offset','rep','mirror','inv','steps','curve','t','interp','gain','aspect','maxR','slit','sdir'])
+  U[n] = gl.getUniformLocation(prog, n);
+gl.uniform1i(U.buf, 0); gl.uniform1i(U.strip, 1); gl.uniform1i(U.mapTex, 2);
+
+function texParams(target){
+  gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(target, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(target, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+const bufTex = gl.createTexture(), stripTex = gl.createTexture(), mapTex = gl.createTexture();
+gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, mapTex); texParams(gl.TEXTURE_2D);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([128,128,128,255]));
+gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, stripTex); texParams(gl.TEXTURE_2D);
+gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, bufTex); texParams(gl.TEXTURE_2D_ARRAY);
+
+/* ---------- ring buffer ---------- */
+const cap = document.createElement('canvas'), cctx = cap.getContext('2d');
+const stripCv = document.createElement('canvas'), sctx = stripCv.getContext('2d');
+let W = 640, H = 360, N = 90, head = 0, newest = 0, count = 0, writeHead = 0, hasMap = false;
+const MAX_BYTES = 800e6;
+
+function srcSize(){
+  if (source === 'video' && video.videoWidth) return [video.videoWidth, video.videoHeight];
+  return [demo.width, demo.height];
+}
+function allocate(){
+  const [sw, sh_] = srcSize();
+  const ar = sw / sh_;
+  // the resolution setting is the short side, so portrait clips keep the same detail as landscape ones
+  const short = Math.round(P.res / 2) * 2;
+  if (ar >= 1){ H = short; W = Math.round(H * ar / 2) * 2; } else { W = short; H = Math.round(W / ar / 2) * 2; }
+  if (Math.max(W, H) > 2048){ const k = 2048 / Math.max(W, H); W = Math.round(W * k / 2) * 2; H = Math.round(H * k / 2) * 2; }
+  const maxN = Math.max(8, Math.floor(MAX_BYTES / (W * H * 4)));
+  N = Math.min(P.frames, maxN, gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS));
+  if (N < P.frames) toast(`At ${P.res}p the buffer holds up to ${N} frames, to stay within graphics memory.`);
+  cap.width = W; cap.height = H; stripCv.width = W; stripCv.height = H;
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, bufTex);
+  gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, W, H, N, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  head = 0; newest = 0; count = 0; writeHead = 0;
+  canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H);
+  drawSource(); capture(true); clearStrip();
+  layout(); syncInfo();
+}
+function drawSource(){ cctx.drawImage(source === 'video' && video.readyState >= 2 ? video : demo, 0, 0, W, H); }
+function capture(fill){
+  if (fill){ // fill the whole buffer with the current frame, so a fresh buffer shows no black
+    gl.activeTexture(gl.TEXTURE0);
+    for (let i = 0; i < N; i++) gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, W, H, 1, gl.RGBA, gl.UNSIGNED_BYTE, cap);
+    head = 1 % N; newest = 0; count = N; return;
+  }
+  gl.activeTexture(gl.TEXTURE0);
+  gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, head, W, H, 1, gl.RGBA, gl.UNSIGNED_BYTE, cap);
+  newest = head; head = (head + 1) % N; count = Math.min(count + 1, N);
+  stripStep();
+}
+function clearStrip(){
+  sctx.fillStyle = '#000'; sctx.fillRect(0, 0, W, H);
+  // start from the current frame so the strip reads immediately
+  sctx.drawImage(cap, 0, 0);
+  writeHead = 0; uploadStrip();
+}
+function uploadStrip(){
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, stripTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, stripCv);
+  gl.activeTexture(gl.TEXTURE0);
+}
+function stripStep(){
+  const vert = P.slitAxis === 'v', L = vert ? W : H, s = Math.max(1, Math.round(P.slitW * H / 360));
+  const sp = Math.round(P.slitPos * (L - s)), fwd = P.stripDir === 'fwd';
+  const put = at => vert ? sctx.drawImage(cap, sp, 0, s, H, at, 0, s, H) : sctx.drawImage(cap, 0, sp, W, s, 0, at, W, s);
+  if (P.stripWrite === 'scroll'){
+    if (vert){ if (fwd) sctx.drawImage(stripCv, s, 0, W - s, H, 0, 0, W - s, H); else sctx.drawImage(stripCv, 0, 0, W - s, H, s, 0, W - s, H); }
+    else { if (fwd) sctx.drawImage(stripCv, 0, s, W, H - s, 0, 0, W, H - s); else sctx.drawImage(stripCv, 0, 0, W, H - s, 0, s, W, H - s); }
+    put(fwd ? L - s : 0);
+  } else {
+    const at = fwd ? writeHead : L - s - writeHead;
+    put(at);
+    writeHead += s; if (writeHead > L - s) writeHead = 0;
+  }
+  if (P.mode === 'strip') uploadStrip();
+}
+
+/* ---------- sources ---------- */
+const video = $('vid');
+const demo = document.createElement('canvas'); demo.width = 1280; demo.height = 720;
+const dctx = demo.getContext('2d');
+let source = 'demo', playing = true, demoT = 0, speed = 1, lastCapT = -1, skip = 0, objUrl = null;
+function drawDemo(t){
+  const g = dctx, w = demo.width, h = demo.height;
+  const bg = g.createLinearGradient(0, 0, w, h); bg.addColorStop(0, '#f3ede2'); bg.addColorStop(1, '#dfe6ee');
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  // drifting bars
+  for (let i = 0; i < 7; i++){
+    const x = ((i * 220 + t * 90) % (w + 220)) - 220;
+    g.fillStyle = i % 2 ? 'rgba(40,52,120,.10)' : 'rgba(230,110,60,.10)'; g.fillRect(x, 0, 90, h);
+  }
+  // rotating flower
+  const cx = w * 0.36, cy = h * 0.52;
+  for (let i = 0; i < 12; i++){
+    const a = i / 12 * Math.PI * 2 + t * 0.9;
+    g.save(); g.translate(cx, cy); g.rotate(a);
+    g.fillStyle = `hsl(${(i * 30 + t * 40) % 360} 78% 56%)`;
+    g.beginPath(); g.ellipse(120, 0, 105, 34, 0, 0, Math.PI * 2); g.fill(); g.restore();
+  }
+  g.fillStyle = '#1b1b22'; g.beginPath(); g.arc(cx, cy, 46, 0, Math.PI * 2); g.fill();
+  // pendulum
+  const px = w * 0.76 + Math.sin(t * 1.7) * 170, py = h * 0.24 + Math.abs(Math.cos(t * 1.7)) * 210;
+  g.strokeStyle = '#1b1b22'; g.lineWidth = 5; g.beginPath(); g.moveTo(w * 0.76, -10); g.lineTo(px, py); g.stroke();
+  g.fillStyle = '#2f49d1'; g.beginPath(); g.arc(px, py, 58, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#ffd34d'; g.beginPath(); g.arc(px - 16, py - 16, 18, 0, Math.PI * 2); g.fill();
+  // sliding word
+  g.font = '700 132px "Geist", system-ui, sans-serif'; g.fillStyle = '#1b1b22'; g.textBaseline = 'alphabetic';
+  g.fillText('TIME', w * 0.52 + Math.sin(t * 0.8) * 220, h * 0.93);
+}
+
+async function loadVideo(file){
+  if (objUrl) URL.revokeObjectURL(objUrl);
+  objUrl = URL.createObjectURL(file);
+  video.src = objUrl; video.playbackRate = speed;
+  try { await new Promise((res, rej) => { video.onloadeddata = res; video.onerror = () => rej(new Error('decode')); }); }
+  catch(e){ toast('This video couldn\'t be opened here. MP4 (H.264) and WebM play in every browser.'); return; }
+  source = 'video'; $('srcName').textContent = file.name; $('scrub').hidden = false;
+  setPlaying(true); allocate(); needFill = true;
+  if ('requestVideoFrameCallback' in video && !rvfcOn){ rvfcOn = true; video.requestVideoFrameCallback(onVideoFrame); }
+}
+let rvfcOn = false;
+let needFill = false;
+function onVideoFrame(){
+  if (source !== 'video') return;
+  // the first presented frame refills the buffer, so a new clip starts clean instead of black
+  if (needFill){ needFill = false; drawSource(); capture(true); clearStrip(); }
+  else grab();
+  video.requestVideoFrameCallback(onVideoFrame);
+}
+function grab(){
+  if (frozen) return;
+  if (++skip < P.every) return; skip = 0;
+  drawSource(); capture(false);
+}
+function loadMapImage(file){
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    // store as greyscale so any image works as a map
+    const c = document.createElement('canvas'), s = Math.min(1, 1024 / Math.max(img.width, img.height));
+    c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+    const x = c.getContext('2d'); x.filter = 'grayscale(1)'; x.drawImage(img, 0, 0, c.width, c.height);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, mapTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    gl.activeTexture(gl.TEXTURE0);
+    hasMap = true; $('mapImgName').textContent = file.name; URL.revokeObjectURL(url);
+    setParam('mode', 'map'); setParam('shape', 'image'); toast('Map image loaded. Bright areas show the past.');
+  };
+  img.onerror = () => { toast('That image couldn\'t be read. Try a PNG or JPG.'); URL.revokeObjectURL(url); };
+  img.src = url;
+}
+function handleFile(file){
+  if (!file) return;
+  if (file.type.startsWith('video/')) loadVideo(file);
+  else if (file.type.startsWith('image/')) loadMapImage(file);
+  else toast('Drop a video file, or an image to use as a time map.');
+}
+$('file').onchange = e => { handleFile(e.target.files[0]); e.target.value = ''; };
+$('mapFile').onchange = e => { handleFile(e.target.files[0]); e.target.value = ''; };
+let dragDepth = 0;
+addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; $('drop').hidden = false; });
+addEventListener('dragleave', () => { if (--dragDepth <= 0){ dragDepth = 0; $('drop').hidden = true; } });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; $('drop').hidden = true; handleFile(e.dataTransfer.files[0]); });
+
+function setPlaying(v){
+  playing = v;
+  if (source === 'video'){ if (v) video.play().catch(() => {}); else video.pause(); }
+  $('playBtn').setAttribute('aria-label', v ? 'Pause' : 'Play');
+  $('playIco').innerHTML = v ? '<rect x="2" y="1.5" width="3.4" height="11" rx="1"/><rect x="8.6" y="1.5" width="3.4" height="11" rx="1"/>' : '<path d="M3.5 2v10l8.5-5z"/>';
+}
+$('playBtn').onclick = () => setPlaying(!playing);
+const SPEEDS = [0.25, 0.5, 1, 2];
+$('speedBtn').onclick = () => {
+  speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+  $('speedBtn').textContent = speed + '×'; video.playbackRate = speed;
+};
+$('scrub').addEventListener('input', e => {
+  const s = e.target; s.style.setProperty('--p', (s.value / 10) + '%');
+  if (video.duration) video.currentTime = s.value / 1000 * video.duration;
+});
+
+/* ---------- inspector ---------- */
+let toastT; function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2800); }
+function makeEditable(out, min, max, step, fmt, get, commit){
+  const pct = /%$/.test(String(fmt(max))), scale = pct ? 100 : 1;
+  out.classList.add('num'); out.tabIndex = 0; out.setAttribute('role','button'); out.title = 'Click to type a value';
+  const open = () => {
+    if (out.hidden) return;
+    const f = document.createElement('input');
+    f.type = 'number'; f.className = 'numedit'; f.step = String(step*scale); f.min = String(min*scale); f.max = String(max*scale);
+    const dec = String(step*scale).split('.')[1]?.length || 0;
+    f.value = (get()*scale).toFixed(Math.min(dec, 3)); f.setAttribute('aria-label', 'Value');
+    out.hidden = true; out.after(f); f.focus(); f.select();
+    let done = false;
+    const close = ok => { if (done) return; done = true;
+      if (ok && f.value.trim() !== '' && isFinite(+f.value)) commit(clamp(+f.value/scale, min, max));
+      f.remove(); out.hidden = false; };
+    f.addEventListener('keydown', e => { e.stopPropagation(); if (e.key==='Enter'){ close(true); out.focus(); } if (e.key==='Escape'){ close(false); out.focus(); } });
+    f.addEventListener('blur', () => close(true));
+  };
+  out.addEventListener('click', open);
+  out.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(); } });
+}
+const pct = v => Math.round(v*100) + '%';
+const CTRLS = {
+  shapeCtrls:[
+    ['angle','Angle',-180,180,1,v=>Math.round(v)+'°', ['linear','angular','wave']],
+    ['cx','Centre X',0,1,0.01,pct, ['radial','angular','noise']],
+    ['cy','Centre Y',0,1,0.01,pct, ['radial','angular','noise']],
+    ['twist','Spiral twist',-6,6,0.05,v=>v.toFixed(2), ['angular']],
+    ['freq','Wave count',0.5,12,0.1,v=>v.toFixed(1), ['wave']],
+    ['amp','Wave height',0,0.5,0.01,pct, ['wave']],
+    ['nscale','Noise scale',0.5,10,0.1,v=>v.toFixed(1), ['noise']],
+    ['cells','Cells',2,48,1,v=>Math.round(v)+' rows', ['mosaic']],
+  ],
+  timeCtrls:[
+    ['depth','Depth',0,1,0.01,pct],
+    ['offset','Offset',0,1,0.01,pct],
+    ['repeat','Repeat',1,24,1,v=>'× '+Math.round(v)],
+    ['steps','Steps',0,32,1,v=>v<2?'smooth':Math.round(v)+' bands'],
+    ['curve','Curve',0.2,5,0.01,v=>v<0.98?'past wider':v>1.02?'now wider':'linear'],
+    ['drift','Drift',-1,1,0.01,v=>Math.abs(v)<0.005?'off':v.toFixed(2)+' /s'],
+  ],
+  stripCtrls:[
+    ['slitPos','Slit position',0,1,0.005,pct],
+    ['slitW','Slit width',1,24,1,v=>Math.round(v)+' px / frame'],
+  ],
+  lookCtrls:[
+    ['echoN','Echo samples',2,24,1,v=>Math.round(v), null, ['echo']],
+    ['gain','Gain',0.5,8,0.05,v=>v.toFixed(2)+'×', null, ['motion','diff']],
+  ],
+  bufCtrls:[
+    ['frames','Frames',8,240,1,v=>Math.round(v)],
+    ['every','Capture every',1,6,1,v=>v==1?'frame':Math.round(v)+' frames'],
+  ],
+};
+const ctrls = {};
+for (const [sec, list] of Object.entries(CTRLS)) for (const [k, label, min, max, step, fmt, shapes, posts] of list){
+  const row = document.createElement('div'); row.className = 'row'; row.dataset.k = k;
+  row.innerHTML = `<label for="c-${k}">${label}</label><output id="c-${k}-o"></output><input type="range" id="c-${k}">`;
+  $(sec).appendChild(row);
+  const inp = row.querySelector('input'), out = row.querySelector('output');
+  inp.min = min; inp.max = max; inp.step = step;
+  const sync = () => { inp.style.setProperty('--p', ((inp.value-min)/(max-min)*100)+'%'); out.textContent = fmt(+inp.value); };
+  const commit = v => setParam(k, v, true);
+  inp.addEventListener('input', () => { sync(); commit(+inp.value); });
+  inp.addEventListener('change', () => { if (k === 'frames') allocate(); });
+  makeEditable(out, min, max, step, fmt, () => +inp.value, v => { inp.value = v; sync(); commit(v); if (k === 'frames') allocate(); });
+  ctrls[k] = { set(v){ inp.value = v; sync(); }, row, shapes, posts };
+}
+const TOGGLES = { mirror:'t-mirror', invert:'t-invert', interp:'t-interp' };
+for (const [k, id] of Object.entries(TOGGLES)) $(id).addEventListener('change', e => setParam(k, e.target.checked, true));
+
+// shape buttons
+for (const [k, label] of SHAPES){
+  const b = document.createElement('button'); b.textContent = label; b.dataset.shape = k; b.setAttribute('aria-pressed','false');
+  b.onclick = () => setParam('shape', k);
+  $('shapes').appendChild(b);
+}
+const SEGS = {
+  mode:{ map:'m-map', strip:'m-strip' },
+  slitAxis:{ v:'s-v', h:'s-h' }, stripWrite:{ scroll:'s-scroll', wipe:'s-wipe' }, stripDir:{ fwd:'s-fwd', rev:'s-rev' },
+  post:{ none:'p-none', echo:'p-echo', motion:'p-motion', diff:'p-diff' },
+  echoOp:{ avg:'e-avg', max:'e-max', min:'e-min' },
+};
+for (const [k, map] of Object.entries(SEGS)) for (const [v, id] of Object.entries(map)) $(id).onclick = () => setParam(k, v);
+document.querySelectorAll('[data-res]').forEach(b => b.onclick = () => { setParam('res', +b.dataset.res); allocate(); });
+
+const NOTES = {
+  map:'Every pixel shows a different moment. The map decides how far back in the buffer each pixel looks.',
+  strip:'Photo-finish style: one slit of each frame is written side by side, so the picture becomes a record of time.',
+};
+const LOOK_NOTES = {
+  none:'', echo:'Blends several moments between now and the mapped delay, like a long exposure.',
+  motion:'Overlays the delayed frame inverted, so still areas turn grey and only movement shows.',
+  diff:'Shows the difference between now and the delayed frame on black.',
+};
+const SHAPE_NOTES = { luma:'Luma: bright areas of the current frame look further back.', image:'' };
+
+let fromPreset = false;
+function setParam(k, v, silent){
+  P[k] = v;
+  if (k === 'mode' && v === 'strip') uploadStrip();
+  if (['slitAxis','stripDir','stripWrite'].includes(k)) clearStrip();
+  if (!fromPreset){ activePreset = null; markPreset(); }
+  if (!silent || k in SEGS || k === 'shape' || k === 'res') syncUI();
+  syncInfo();
+}
+function syncUI(){
+  document.body.dataset.mode = P.mode;
+  for (const [k, map] of Object.entries(SEGS)) for (const [v, id] of Object.entries(map)) $(id).setAttribute('aria-pressed', String(P[k] === v));
+  document.querySelectorAll('#shapes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.shape === P.shape)));
+  document.querySelectorAll('[data-res]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.res === P.res)));
+  for (const [k, c] of Object.entries(ctrls)){
+    if (typeof P[k] === 'number') c.set(P[k]);
+    c.row.hidden = (c.shapes && !c.shapes.includes(P.shape)) || (c.posts && !c.posts.includes(P.post));
+  }
+  for (const [k, id] of Object.entries(TOGGLES)) $(id).checked = !!P[k];
+  $('echoBox').hidden = P.post !== 'echo';
+  $('mapImgRow').hidden = P.shape !== 'image';
+  $('techNote').textContent = NOTES[P.mode];
+  $('lookNote').textContent = LOOK_NOTES[P.post] || SHAPE_NOTES[P.shape] || '';
+  $('lookNote').hidden = !$('lookNote').textContent;
+}
+function fps(){ return source === 'video' ? 30 / P.every : 30 / P.every; }
+function syncInfo(){
+  const secs = (N - 1) / fps();
+  $('bufOut').textContent = `— ${N} frames · ${secs.toFixed(1)} s`;
+  $('memOut').textContent = `${W}×${H} · ${Math.round(W*H*4*N/1e6)} MB`;
+  const fr = Math.round(P.depth * (N - 1));
+  $('depthOut').textContent = `${fr} frames · ${(fr / fps()).toFixed(2)} s`;
+  $('x-res').textContent = `${W}×${H}`;
+}
+
+/* ---------- presets ---------- */
+let activePreset = 0;
+const thumbs = [];
+PRESETS.forEach((pr, i) => {
+  const b = document.createElement('button'); b.className = 'ptile'; b.setAttribute('aria-pressed','false'); b.title = pr.name;
+  const c = document.createElement('canvas'); c.width = 128; c.height = 80;
+  const s = document.createElement('span'); s.textContent = pr.name;
+  b.append(c, s); b.onclick = () => applyPreset(i);
+  $('pgrid').appendChild(b); thumbs.push(c);
+});
+function applyParams(p){
+  fromPreset = true;
+  const resChanged = p.res !== P.res || p.frames !== P.frames;
+  Object.assign(P, p);
+  if (P.mode === 'strip') clearStrip();
+  syncUI(); syncInfo(); fromPreset = false;
+  if (resChanged) allocate();
+}
+function applyPreset(i){
+  i = (i + PRESETS.length) % PRESETS.length;
+  if (PRESETS[i].p.shape === 'image' && !hasMap) toast('Load a map image first.');
+  applyParams(presetParams(PRESETS[i].p)); activePreset = i; markPreset();
+}
+function markPreset(){
+  document.querySelectorAll('.ptile').forEach((b, i) => b.setAttribute('aria-pressed', String(i === activePreset)));
+  $('presetName').textContent = activePreset == null ? 'custom' : PRESETS[activePreset].name;
+}
+function renderThumbs(){
+  const save = { ...P }, tw = 128, th = 80;
+  if (W < tw || H < th) return;
+  for (let i = 0; i < PRESETS.length; i++){
+    Object.assign(P, presetParams(PRESETS[i].p));
+    // effect presets read best as a result frame, the rest as their time map
+    gl.viewport(0, 0, tw, th); draw(P.post === 'none' ? 1 : 0, 0);
+    const x = thumbs[i].getContext('2d'); x.clearRect(0, 0, tw, th);
+    x.drawImage(canvas, 0, H - th, tw, th, 0, 0, tw, th);
+  }
+  Object.assign(P, save); gl.viewport(0, 0, W, H);
+}
+
+// saved looks, per browser
+let mine = [];
+try { mine = JSON.parse(localStorage.getItem('slitscan.presets') || '[]'); } catch(e) { mine = []; }
+function persist(){ try { localStorage.setItem('slitscan.presets', JSON.stringify(mine)); } catch(e) { toast('This browser couldn\'t store the preset. Use Export presets to keep it as a file.'); } }
+function renderMine(){
+  const box = $('myChips'); box.innerHTML = '';
+  mine.forEach((m, i) => {
+    const b = document.createElement('button'); b.className = 'chip'; b.setAttribute('aria-pressed','false');
+    b.innerHTML = `<span></span><span class="x" title="Delete" aria-label="Delete">×</span>`;
+    b.firstChild.textContent = m.name;
+    b.onclick = e => {
+      if (e.target.classList.contains('x')){ mine.splice(i, 1); persist(); renderMine(); toast(`Deleted "${m.name}"`); return; }
+      applyParams(presetParams(m.p)); activePreset = null; markPreset(); $('presetName').textContent = m.name;
+    };
+    box.appendChild(b);
+  });
+}
+function snapshot(){ const o = {}; for (const k of Object.keys(DEF)) if (!BUFFER_KEYS.includes(k)) o[k] = P[k]; return o; }
+$('presetSave').onclick = () => {
+  const name = $('presetInput').value.trim() || `Look ${mine.length + 1}`;
+  const ex = mine.findIndex(m => m.name === name);
+  if (ex >= 0) mine[ex].p = snapshot(); else mine.push({ name, p: snapshot() });
+  persist(); renderMine(); $('presetInput').value = ''; toast(`Saved "${name}"`);
+};
+$('presetInput').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') $('presetSave').click(); });
+$('presetExport').onclick = () => {
+  const data = { app:'slit-scan-studio', version:1, presets: mine.length ? mine : [{ name:'Current look', p:snapshot() }] };
+  saveFile('slit-scan-presets.json', new Blob([JSON.stringify(data, null, 2)], { type:'application/json' }));
+};
+$('presetImport').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (d.app !== 'slit-scan-studio' || !Array.isArray(d.presets)) throw 0;
+    let n = 0;
+    for (const m of d.presets) if (m && typeof m.name === 'string' && m.p && typeof m.p === 'object'){
+      const clean = {}; for (const k of Object.keys(DEF)) if (k in m.p && typeof m.p[k] === typeof DEF[k]) clean[k] = m.p[k];
+      const ex = mine.findIndex(x => x.name === m.name);
+      if (ex >= 0) mine[ex].p = clean; else mine.push({ name: m.name.slice(0, 40), p: clean }); n++;
+    }
+    persist(); renderMine(); toast(`Imported ${n} preset${n === 1 ? '' : 's'}`);
+  } catch(err){ toast('That file isn\'t a Slit-Scan Studio preset file.'); }
+};
+
+/* ---------- views ---------- */
+let view = 0;
+const VIEWS = ['v-result','v-map','v-source'];
+function setView(v){ view = v; VIEWS.forEach((id, i) => $(id).setAttribute('aria-pressed', String(i === v))); }
+VIEWS.forEach((id, i) => $(id).onclick = () => setView(i));
+let frozen = false;
+$('b-freeze').addEventListener('change', e => { frozen = e.target.checked; });
+$('bufClear').onclick = () => { drawSource(); capture(true); toast('Buffer refilled from the current frame'); };
+$('stripClear').onclick = () => { drawSource(); clearStrip(); };
+
+/* ---------- layout ---------- */
+let panelOpen = true;
+$('panelBtn').onclick = () => { panelOpen = !panelOpen; $('panel').hidden = !panelOpen; $('panelBtn').setAttribute('aria-pressed', String(panelOpen)); layout(); };
+function layout(){
+  const vw = innerWidth, vh = innerHeight, narrow = vw <= 760;
+  const top = 72, bottom = narrow ? 84 : 96;
+  const right = (!narrow && panelOpen) ? 292 + 32 : 16;
+  let aw = vw - 16 - right, ah = vh - top - bottom;
+  if (narrow && panelOpen) ah = Math.max(120, vh * 0.5 - 160);
+  const s = Math.min(aw / W, ah / H);
+  const cw = Math.max(1, Math.floor(W * s)), ch = Math.max(1, Math.floor(H * s));
+  canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+  canvas.style.left = Math.round(16 + (aw - cw) / 2) + 'px';
+  canvas.style.top = Math.round(top + (ah - ch) / 2) + 'px';
+}
+addEventListener('resize', layout);
+
+/* ---------- draw ---------- */
+let phase = 0;
+function draw(viewOverride, tOverride){
+  const v = viewOverride ?? view;
+  if (viewOverride == null) gl.viewport(0, 0, W, H);   // the canvas size follows the clip's aspect ratio
+  gl.uniform1i(U.newest, newest); gl.uniform1i(U.N, N); gl.uniform1i(U.count, count);
+  gl.uniform1i(U.shape, SHAPE_IDX[P.shape]); gl.uniform1i(U.view, v);
+  gl.uniform1i(U.post, ['none','echo','motion','diff'].indexOf(P.post));
+  gl.uniform1i(U.echoN, Math.round(P.echoN)); gl.uniform1i(U.echoOp, ['avg','max','min'].indexOf(P.echoOp));
+  gl.uniform1i(U.mode, P.mode === 'strip' ? 1 : 0);
+  for (const k of ['angle','cx','cy','twist','freq','amp','nscale','cells','depth','offset','steps','curve','gain']) gl.uniform1f(U[k], P[k]);
+  gl.uniform1f(U.rep, P.repeat); gl.uniform1f(U.mirror, P.mirror ? 1 : 0); gl.uniform1f(U.inv, P.invert ? 1 : 0);
+  gl.uniform1f(U.interp, P.interp ? 1 : 0); gl.uniform1f(U.t, tOverride ?? phase);
+  const ar = W / H; gl.uniform1f(U.aspect, ar);
+  const cxa = P.cx * ar, far = Math.max(Math.hypot(cxa, P.cy), Math.hypot(ar - cxa, P.cy), Math.hypot(cxa, 1 - P.cy), Math.hypot(ar - cxa, 1 - P.cy));
+  gl.uniform1f(U.maxR, far);
+  const L = P.slitAxis === 'v' ? W : H;
+  gl.uniform4f(U.slit, P.slitAxis === 'v' ? 0 : 1, P.slitPos, writeHead / L, P.stripWrite === 'wipe' ? 1 : 0);
+  gl.uniform1f(U.sdir, P.stripDir === 'fwd' ? 1 : -1);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+/* ---------- saving ---------- */
+let downloadsApi = null;
+if (window.claude && claude.use) claude.use('downloads').then(d => { downloadsApi = d; }).catch(() => {});
+async function saveFile(filename, blob){
+  if (downloadsApi){
+    try { await downloadsApi.save({ filename, data: blob }); toast('Saved ' + filename); }
+    catch(e){
+      const c = e && e.code;
+      if (c === 'declined') toast('Save cancelled');
+      else if (c === 'too_large') toast('That file is too large to save here. Try a shorter recording.');
+      else if (c === 'rate_limited') toast('A save prompt is already open. Try again in a moment.');
+      else toast('Saving isn\'t available in this view.');
+    }
+    return;
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+const stamp = () => new Date().toISOString().slice(0,19).replace(/[-:T]/g,'');
+
+/* ---------- export sheet ---------- */
+const EX = { fmt:'png', scale:1 };
+const FMT = { png:['x-png','image/png'], jpg:['x-jpg','image/jpeg'], webp:['x-webp','image/webp'] };
+for (const [k, [id]] of Object.entries(FMT)) $(id).onclick = () => { EX.fmt = k; for (const [k2,[id2]] of Object.entries(FMT)) $(id2).setAttribute('aria-pressed', String(k2 === k)); };
+$('x-1').onclick = () => { EX.scale = 1; $('x-1').setAttribute('aria-pressed','true'); $('x-2').setAttribute('aria-pressed','false'); };
+$('x-2').onclick = () => { EX.scale = 2; $('x-2').setAttribute('aria-pressed','true'); $('x-1').setAttribute('aria-pressed','false'); };
+$('exportBtn').onclick = () => { syncInfo(); $('x-vfmt').textContent = recMime().includes('mp4') ? 'MP4' : 'WebM'; $('exportSheet').hidden = false; };
+$('x-close').onclick = () => { $('exportSheet').hidden = true; };
+$('exportSheet').addEventListener('click', e => { if (e.target.id === 'exportSheet') $('exportSheet').hidden = true; });
+$('x-frame').onclick = () => {
+  draw();
+  const out = document.createElement('canvas'); out.width = W * EX.scale; out.height = H * EX.scale;
+  const x = out.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(canvas, 0, 0, out.width, out.height);
+  out.toBlob(b => { if (b) saveFile(`slit-scan-${stamp()}.${EX.fmt}`, b); }, FMT[EX.fmt][1], 0.95);
+};
+$('x-pass').onclick = () => {
+  $('exportSheet').hidden = true;
+  if (rec) stopRec();
+  passMode = true; lastVt = -1;
+  if (source === 'video'){ video.currentTime = 0; setPlaying(true); }
+  else { demoT = 0; setPlaying(true); }
+  startRec();
+};
+
+/* ---------- recording ---------- */
+let rec = null, recChunks = [], recStart = 0, passMode = false, lastVt = -1;
+function recMime(){
+  const c = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4'];
+  return (window.MediaRecorder && c.find(m => MediaRecorder.isTypeSupported(m))) || '';
+}
+function startRec(){
+  const mime = recMime();
+  if (!mime || !canvas.captureStream){ toast('This browser can\'t record video. Try Chrome, Edge, Firefox or Safari 14.1+.'); passMode = false; return; }
+  recChunks = [];
+  rec = new MediaRecorder(canvas.captureStream(30), { mimeType: mime, videoBitsPerSecond: 24e6 });
+  rec.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
+  rec.onstop = () => {
+    const blob = new Blob(recChunks, { type: mime.split(';')[0] });
+    saveFile(`slit-scan-${stamp()}.${mime.includes('mp4') ? 'mp4' : 'webm'}`, blob);
+  };
+  rec.start(500); recStart = performance.now();
+  $('recBtn').setAttribute('aria-pressed','true'); $('recPill').hidden = false;
+}
+function stopRec(){
+  if (!rec) return;
+  rec.stop(); rec = null; passMode = false;
+  $('recBtn').setAttribute('aria-pressed','false'); $('recPill').hidden = true;
+}
+$('recBtn').onclick = () => rec ? stopRec() : startRec();
+$('recPill').onclick = stopRec;
+
+/* ---------- keyboard ---------- */
+addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input,textarea')) return;
+  if (e.key === ' '){ e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === ']') applyPreset((activePreset ?? -1) + 1);
+  else if (e.key === '[') applyPreset((activePreset ?? 1) - 1);
+  else if (e.key === 'v' || e.key === 'V') setView((view + 1) % 3);
+  else if (e.key === 'r' || e.key === 'R') rec ? stopRec() : startRec();
+  else if (e.key === 'f' || e.key === 'F'){ frozen = !frozen; $('b-freeze').checked = frozen; toast(frozen ? 'Buffer frozen' : 'Buffer live'); }
+  else if (e.key === 'Escape') $('exportSheet').hidden = true;
+});
+
+/* ---------- collapsible inspector sections ---------- */
+(() => {
+  let folded = {};
+  try { folded = JSON.parse(localStorage.getItem('slitscan.folded') || '{}'); } catch(e) {}
+  document.querySelectorAll('#panel .sec').forEach((sec, n) => {
+    const h = sec.querySelector(':scope > h3'); if (!h) return;
+    const key = sec.id || 'sec' + n;
+    h.classList.add('fold'); h.tabIndex = 0; h.setAttribute('role','button');
+    const c = document.createElement('i'); c.className = 'chev'; h.appendChild(c);
+    const set = v => { sec.classList.toggle('collapsed', v); h.setAttribute('aria-expanded', String(!v)); };
+    set(!!folded[key]);
+    const flip = () => { const v = !sec.classList.contains('collapsed'); set(v); folded[key] = v; try { localStorage.setItem('slitscan.folded', JSON.stringify(folded)); } catch(e) {} };
+    h.addEventListener('click', e => { if (e.target.closest('button,input,output')) return; flip(); });
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); flip(); } });
+  });
+})();
+
+/* ---------- main loop ---------- */
+let last = performance.now(), uiTick = 0, demoAcc = 0, thumbsDone = false, started = performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  phase += dt * P.drift;
+  if (source === 'demo' && playing){
+    demoAcc += dt * speed;
+    // the demo runs at 30 fps, so captures match a typical video
+    while (demoAcc >= 1/30){ demoAcc -= 1/30; demoT += 1/30; drawDemo(demoT); grab(); }
+    if (passMode && demoT >= 8) stopRec();
+  }
+  if (source === 'video'){
+    if (!('requestVideoFrameCallback' in video) && video.currentTime !== lastCapT && video.readyState >= 2){
+      lastCapT = video.currentTime;
+      if (needFill){ needFill = false; drawSource(); capture(true); clearStrip(); } else grab();
+    }
+    if (passMode){ if (lastVt > video.currentTime + 0.2) stopRec(); lastVt = video.currentTime; }
+  }
+  if (!thumbsDone && now - started > 900){ thumbsDone = true; renderThumbs(); }
+  draw();
+  if (rec && ++uiTick % 10 === 0){
+    const s = Math.floor((now - recStart) / 1000);
+    $('recTime').textContent = `REC ${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  }
+  if (++uiTick % 15 === 0 && source === 'video' && video.duration){
+    const fmt = x => `${String(Math.floor(x/60)).padStart(2,'0')}:${String(Math.floor(x%60)).padStart(2,'0')}`;
+    $('srcTime').textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
+    if (document.activeElement !== $('scrub')){ const s = $('scrub'); s.value = video.currentTime / video.duration * 1000; s.style.setProperty('--p', (s.value/10)+'%'); }
+  }
+  if (now - started > 7000) $('hint').classList.add('gone');
+}
+
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
+  drawDemo(0); allocate(); syncUI(); markPreset(); renderMine(); requestAnimationFrame(frame);
+});
+})();
+</script>
+</body>
+</html>
