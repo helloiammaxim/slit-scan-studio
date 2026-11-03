@@ -592,83 +592,98 @@ function stripStep(){
 
 /* ---------- sources ---------- */
 const video = $('vid');
-const demo = document.createElement('canvas'); demo.width = 1280; demo.height = 720;
-const dctx = demo.getContext('2d');
 let source = 'demo', playing = true, demoT = 0, speed = 1, lastCapT = -1, skip = 0, objUrl = null;
-function drawDemo(t){
-  const g = dctx, w = demo.width, h = demo.height, cx = w*0.5, cy = h*0.46;
-  g.globalCompositeOperation = 'source-over';
-  g.fillStyle = '#050507'; g.fillRect(0, 0, w, h);
-
-  // slow aurora: three soft light fields drifting on long loops
-  g.globalCompositeOperation = 'screen';
-  const fields = [
-    ['66,133,244', 0.00, 0.31, 0.62],   // blue
-    ['155,114,203', 2.10, 0.23, 0.55],  // violet
-    ['217,101,112', 4.20, 0.27, 0.50],  // rose
-  ];
-  for (const [c, ph, sp, r] of fields){
-    const a = t*sp + ph;
-    const x = cx + Math.cos(a)*w*0.22, y = cy + Math.sin(a*1.3)*h*0.20, rad = h*r;
-    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
-    gr.addColorStop(0, `rgba(${c},.55)`); gr.addColorStop(0.45, `rgba(${c},.18)`); gr.addColorStop(1, `rgba(${c},0)`);
-    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad*2, rad*2);
-  }
-  g.globalCompositeOperation = 'source-over';
-
-  // hairline orbit with one small light travelling on it
-  const ox = h*0.34, oy = h*0.12, tilt = -0.18;
-  g.save(); g.translate(cx, cy); g.rotate(tilt);
-  g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1.5;
-  g.beginPath(); g.ellipse(0, 0, ox, oy, 0, 0, Math.PI*2); g.stroke();
-  const oa = t*1.4, px = Math.cos(oa)*ox, py = Math.sin(oa)*oy, front = Math.sin(oa) > 0;
-  g.restore();
-  const dot = () => {
-    const x = cx + px*Math.cos(tilt) - py*Math.sin(tilt), y = cy + px*Math.sin(tilt) + py*Math.cos(tilt);
-    const gr = g.createRadialGradient(x, y, 0, x, y, 26);
-    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = gr; g.fillRect(x - 26, y - 26, 52, 52);
-  };
-  if (!front) dot();
-
-  // the sparkle: four concave points, gradient fill that turns against the shape
-  const r = h*0.19*(1 + 0.06*Math.sin(t*1.6)), rot = t*0.55;
-  const halo = g.createRadialGradient(cx, cy, 0, cx, cy, r*1.9);
-  halo.addColorStop(0, 'rgba(140,150,255,.32)'); halo.addColorStop(1, 'rgba(140,150,255,0)');
-  g.fillStyle = halo; g.fillRect(cx - r*2, cy - r*2, r*4, r*4);
-  g.save(); g.translate(cx, cy); g.rotate(rot);
-  let fill;
-  if (g.createConicGradient){
-    fill = g.createConicGradient(-rot*2.2, 0, 0);
-    fill.addColorStop(0, '#4285f4'); fill.addColorStop(0.33, '#9b72cb'); fill.addColorStop(0.62, '#d96570');
-    fill.addColorStop(0.82, '#f2a45a'); fill.addColorStop(1, '#4285f4');
+const demo = document.createElement('canvas'); demo.width = 1280; demo.height = 720;
+/* demo clip: a low-key sculptural bust on slate grey, a slit of light sweeps across while the head turns.
+   Rendered with its own small WebGL2 raymarcher, then read like any video frame. */
+const dgl = demo.getContext('webgl2', { preserveDrawingBuffer:true, antialias:false });
+const DEMO_FS = `#version 300 es
+precision highp float;
+uniform vec2 res; uniform float t; out vec4 o;
+mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+float sdEll(vec3 p, vec3 r){ float k0 = length(p/r), k1 = length(p/(r*r)); return k0*(k0 - 1.)/k1; }
+float sdCap(vec3 p, vec3 a, vec3 b, float r){ vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa,ba)/dot(ba,ba), 0., 1.); return length(pa - ba*h) - r; }
+float smin(float a, float b, float k){ float h = clamp(.5 + .5*(b - a)/k, 0., 1.); return mix(b, a, h) - k*h*(1. - h); }
+float yaw, pitch;
+float head(vec3 p){
+  vec3 q = p - vec3(0., .62, 0.);
+  q.xz *= rot(yaw); q.yz *= rot(pitch);
+  float d = sdEll(q, vec3(.29, .38, .33));                                   // cranium
+  d = smin(d, sdEll(q - vec3(0., -.20, .06), vec3(.20, .25, .25)), .14);    // jaw
+  d = smin(d, sdEll(q - vec3(0., -.05, .31), vec3(.045, .10, .07)), .05);   // nose
+  d = smin(d, sdEll(q - vec3(0., .06, .24), vec3(.19, .045, .08)), .07);    // brow
+  d = smin(d, sdEll(q - vec3(0., .20, -.12), vec3(.22, .2, .26)), .1);      // swept-back hair
+  return d;
+}
+float body(vec3 p){
+  float neck = sdCap(p, vec3(0., -.05, 0.), vec3(0., .38, .03), .13);
+  float collar = sdCap(p, vec3(0., -.42, 0.), vec3(0., .28, .03), .175);   // high turtleneck
+  float sh = sdEll(p - vec3(0., -.82, -.04), vec3(1.05, .5, .4));
+  return smin(smin(neck, collar, .04), sh, .2);
+}
+float map(vec3 p, out float m){
+  float h = head(p), b = body(p); m = h < b ? 1. : 2.;
+  return smin(h, b, .04);
+}
+vec3 nrm(vec3 p){ float m; vec2 e = vec2(.0015, 0.);
+  return normalize(vec3(map(p+e.xyy,m) - map(p-e.xyy,m), map(p+e.yxy,m) - map(p-e.yxy,m), map(p+e.yyx,m) - map(p-e.yyx,m))); }
+void main(){
+  vec2 uv = (gl_FragCoord.xy - .5*res)/res.y;
+  // slate backdrop: deep blue-grey above, soft warm grey low right, like a paper sweep
+  float gx = clamp(.55 + .45*uv.x - .75*uv.y, 0., 1.);
+  vec3 bg = mix(vec3(.12, .15, .20), vec3(.50, .51, .53), smoothstep(.15, 1.1, gx));
+  bg *= 1. - .35*dot(uv*vec2(.7, 1.), uv*vec2(.7, 1.));
+  yaw = sin(t*.42)*.5 - .15; pitch = .06 + sin(t*.31)*.05;
+  float bx = sin(t*.5)*.30 - .04;   // where the slit of light falls: it sweeps over the face
+  vec3 ro = vec3(.3, .62, 3.7), ta = vec3(0., .36, 0.);
+  vec3 ww = normalize(ta - ro), uu = normalize(cross(ww, vec3(0,1,0))), vv = cross(uu, ww);
+  vec3 rd = normalize(uv.x*uu + uv.y*vv + 2.1*ww);
+  float d = 0., m = 0.; bool hit = false;
+  for (int i = 0; i < 90; i++){ float s = map(ro + rd*d, m); if (s < .0008){ hit = true; break; } d += s; if (d > 6.) break; }
+  vec3 col;
+  if (hit){
+    vec3 p = ro + rd*d, n = nrm(p), v = -rd;
+    vec3 L = normalize(vec3(-.25, .18, 1.));
+    float band = smoothstep(.065, .018, abs(p.x - bx + p.z*.22));         // narrow projected slit
+    float dif = max(dot(n, L), 0.);
+    float spe = pow(max(dot(reflect(-L, n), v), 0.), m < 1.5 ? 36. : 12.);
+    float fre = pow(1. - max(dot(n, v), 0.), 4.);
+    float rim = fre*max(dot(n, normalize(vec3(.7, .5, -.5))), 0.);
+    vec3 alb = m < 1.5 ? vec3(.30, .32, .37) : vec3(.03, .032, .04);
+    float top = max(dot(n, normalize(vec3(.4, 1., .3))), 0.);
+    col = alb*vec3(.5, .62, .85)*(.006 + .05*top);                         // dim cool top light shapes the form
+    col += alb*dif*band*vec3(1., .97, .93)*(m < 1.5 ? 2.1 : .9);
+    col += spe*band*(m < 1.5 ? .7 : .12);
+    col += pow(max(dot(reflect(-normalize(vec3(.4, 1., .3)), n), v), 0.), 24.)*(m < 1.5 ? .05 : .02); // soft sheen
+    col += rim*vec3(.38, .48, .62)*(m < 1.5 ? .55 : .22);                  // cool edge from the backdrop
+    col = pow(col, vec3(1./2.2));
   } else {
-    fill = g.createLinearGradient(-r, -r, r, r);
-    fill.addColorStop(0, '#4285f4'); fill.addColorStop(0.5, '#9b72cb'); fill.addColorStop(1, '#d96570');
+    float band = smoothstep(.22, .0, abs(uv.x - bx*.62))*.06;             // faint spill on the sweep
+    col = bg + band;
   }
-  g.fillStyle = fill;
-  g.beginPath(); g.moveTo(0, -r);
-  g.quadraticCurveTo(r*0.06, -r*0.06, r, 0);
-  g.quadraticCurveTo(r*0.06, r*0.06, 0, r);
-  g.quadraticCurveTo(-r*0.06, r*0.06, -r, 0);
-  g.quadraticCurveTo(-r*0.06, -r*0.06, 0, -r);
-  g.fill();
-  // soft white core gives the shape a lit, glassy centre
-  const core = g.createRadialGradient(0, 0, 0, 0, 0, r*0.42);
-  core.addColorStop(0, 'rgba(255,255,255,.75)'); core.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = core; g.fill();
-  g.restore();
-  if (front) dot();
-
-  // quiet wordmark
-  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  g.font = '500 30px "Geist", system-ui, sans-serif';
-  g.fillStyle = 'rgba(255,255,255,.86)';
-  if ('letterSpacing' in g) g.letterSpacing = '0.5px';
-  g.fillText('Slit-Scan Studio', cx, h*0.86);
-  g.font = '400 18px "Geist", system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,.42)';
-  g.fillText('Every pixel, a different moment.', cx, h*0.86 + 32);
-  if ('letterSpacing' in g) g.letterSpacing = '0px';
+  // fine grain, like a print
+  col += (fract(sin(dot(gl_FragCoord.xy + fract(t)*91., vec2(12.9898, 78.233)))*43758.5453) - .5)*.012;
+  o = vec4(col, 1.);
+}`;
+const demoProg = (() => {
+  if (!dgl) return null;
+  const mk = (ty, src) => { const s = dgl.createShader(ty); dgl.shaderSource(s, src); dgl.compileShader(s);
+    if (!dgl.getShaderParameter(s, dgl.COMPILE_STATUS)) throw new Error(dgl.getShaderInfoLog(s)); return s; };
+  const pr = dgl.createProgram();
+  dgl.attachShader(pr, mk(dgl.VERTEX_SHADER, `#version 300 es
+in vec2 pos; void main(){ gl_Position = vec4(pos, 0., 1.); }`));
+  dgl.attachShader(pr, mk(dgl.FRAGMENT_SHADER, DEMO_FS));
+  dgl.bindAttribLocation(pr, 0, 'pos'); dgl.linkProgram(pr); dgl.useProgram(pr);
+  const b = dgl.createBuffer(); dgl.bindBuffer(dgl.ARRAY_BUFFER, b);
+  dgl.bufferData(dgl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), dgl.STATIC_DRAW);
+  dgl.enableVertexAttribArray(0); dgl.vertexAttribPointer(0, 2, dgl.FLOAT, false, 0, 0);
+  return { res: dgl.getUniformLocation(pr, 'res'), t: dgl.getUniformLocation(pr, 't') };
+})();
+function drawDemo(t){
+  if (!demoProg) return;
+  dgl.viewport(0, 0, demo.width, demo.height);
+  dgl.uniform2f(demoProg.res, demo.width, demo.height); dgl.uniform1f(demoProg.t, t);
+  dgl.drawArrays(dgl.TRIANGLES, 0, 3);
 }
 
 async function loadVideo(file){
